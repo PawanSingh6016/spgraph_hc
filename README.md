@@ -1,2 +1,2 @@
 # spgraph_hc
-sharepoint graphql explorer using hotchocolate
+sharepoint folders/subsite graphql explorer using hotchocolate
