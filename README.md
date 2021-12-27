@@ -1,7 +1,7 @@
 # spgraph_hc
 sharepoint folders/subsite graphql explorer using hotchocolate
 
-Use the SharePoint jwt in the Auth header as a bearer token and below is a sample request that can be used to show as a 
+Use the SharePoint jwt in the Auth header as a bearer token and below is a sample request that can be used : 
 
 
 Sample request. 
