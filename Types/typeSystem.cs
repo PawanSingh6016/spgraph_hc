@@ -1,6 +1,11 @@
 using System.Collections.Generic;
 using GraphQuery;
+using HotChocolate;
+using HotChocolate.Execution;
+using HotChocolate.Subscriptions;
 using HotChocolate.Types;
+using Mutations;
+using Subscriptions;
 
 namespace TypeSystem
 {
@@ -62,12 +67,12 @@ namespace TypeSystem
 
         public class GraphSpFolder : ObjectType<SPFolder>
         {
-             public Microsoft.AspNetCore.Http.IHttpContextAccessor accessor;
+            public Microsoft.AspNetCore.Http.IHttpContextAccessor accessor;
 
             public GraphSpFolder(Microsoft.AspNetCore.Http.IHttpContextAccessor ctx) => this.accessor = ctx;
             protected override void Configure(IObjectTypeDescriptor<SPFolder> descriptor)
             {
-                var query = new Query(accessor);               
+                var query = new Query(accessor);
 
                 descriptor.Field("files")
                 .Resolve(context =>
@@ -85,6 +90,50 @@ namespace TypeSystem
             }
         }
 
+
+        public class GraphFolderMutation : ObjectType<SPMutationFolder>
+        {
+            public Microsoft.AspNetCore.Http.IHttpContextAccessor accessor;
+            public ITopicEventSender topicSender;
+            public GraphFolderMutation(Microsoft.AspNetCore.Http.IHttpContextAccessor ctx, ITopicEventSender sender) { this.accessor = ctx; topicSender = sender; }
+            protected override void Configure(IObjectTypeDescriptor<SPMutationFolder> descriptor)
+            {
+                descriptor.Field("addFolder")
+                .Argument("siteUrl", context => context.Type<StringType>())
+                .Argument("parent", context => context.Type<StringType>())
+                .Argument("folderName", context => context.Type<StringType>())
+                .Resolve(context =>
+                {
+                    var webUrl = context.ArgumentValue<string>("siteUrl");
+                    var parentServerRelativeUrl = context.ArgumentValue<string>("parent");
+                    var folderName = context.ArgumentValue<string>("folderName");
+                    var folderMutation = new SPMutationFolder(accessor);
+                    var result = folderMutation.AddFolder(webUrl, parentServerRelativeUrl, folderName).Result;
+                    if (result != null)
+                        topicSender.SendAsync($"FolderCreated_{webUrl}", result);
+                    return result;
+                });
+            }
+        }
+
+        public class GraphFolderSubscription : ObjectType//<Subscriptions.SPFolderSubscription>
+        {
+            protected override void Configure(IObjectTypeDescriptor descriptor)//<SPFolderSubscription> descriptor)
+            {
+               descriptor.Field("OnFolderAddition")            
+               .Argument("webUrl",w=>w.Type<StringType>()) 
+               .Resolve(t=>t.GetEventMessage<SPFolder>())                        
+               .Subscribe(async context =>
+                {
+                    var receiver = context.Service<ITopicEventReceiver>();
+                    var webUrl = context.ArgumentValue<string>("webUrl");
+                    ISourceStream stream = await receiver.SubscribeAsync<string,SPFolder>($"FolderCreated_{webUrl}");
+                    return stream;
+                });               
+            }
+        }
+
     }
+
 
 }

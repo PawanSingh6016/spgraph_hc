@@ -17,11 +17,14 @@ namespace SPGraphExplorer
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            
             services
             .AddHttpContextAccessor()          
             .AddGraphQLServer()
-            .AddQueryType<GraphQuery.GraphQuery>();           
-            
+            .AddQueryType<GraphQuery.GraphQuery>()
+            .AddMutationType<TypeSystem.GraphTypes.GraphFolderMutation>()
+            .AddSubscriptionType<TypeSystem.GraphTypes.GraphFolderSubscription>()
+            .AddInMemorySubscriptions();               
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -33,11 +36,14 @@ namespace SPGraphExplorer
             }
 
             app.UseRouting();
-
+            app.UseWebSockets(new WebSocketOptions(){
+                KeepAliveInterval=new System.TimeSpan(1,0,0),                
+            });
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapGraphQL();
             });
+            
         }
     }
 }

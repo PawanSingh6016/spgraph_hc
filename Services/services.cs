@@ -25,32 +25,60 @@ namespace DataServices
 
         public delegate Task<List<SPFile>> ArrayResourceDelegateFiles(string url);
         public async Task<SPSite> sp_getSite(string url)
-        {            
+        {
             ResourceDelegate getSpSite = restClient.getResource<SPSite>;
             return await getSpSite(url.TrimEnd(new char[] { ' ', '/' }) + "/_api/web") as SPSite;
         }
 
         public async Task<List<SPFolder>> sp_getSiteFolders(string siteurl)
-        {            
+        {
             ArrayResourceDelegate getFolders = restClient.getResourceArray<SPFolder>;
             return await getFolders(siteurl.TrimEnd(new char[] { ' ', '/' }) + "/_api/web/folders");
         }
         public async Task<List<SPSite>> sp_getSubsites(string siteurl)
-        {            
+        {
             ArrayResourceDelegateSite getWebs = restClient.getResourceArray<SPSite>;
             return await getWebs(siteurl.TrimEnd(new char[] { ' ', '/' }) + "/_api/web/webs");
         }
 
         public async Task<List<SPFile>> sp_getFilesInFolder(string folderUrl)
-        {            
+        {
             ArrayResourceDelegateFiles getFiles = restClient.getResourceArray<SPFile>;
             return await getFiles(folderUrl + "/files");
         }
         public async Task<List<SPFolder>> sp_getFoldersInFolder(string folderUrl)
-        {            
+        {
             ArrayResourceDelegate getFolders = restClient.getResourceArray<SPFolder>;
             return await getFolders(folderUrl + "/folders");
         }
+
+        public async Task<SPFolder> sp_createFolder(string webUrl, string parentServerRelativeUrl, string folderName)
+        {
+            var contextDigestResponse = await restClient.postResource(webUrl.TrimEnd(new char[]{' ','/'})+"/_api/contextinfo", null,null);
+            var formDigest = await (await contextDigestResponse.Content.ReadAsStringAsync().ContinueWith(async r=>{
+                string result = await r;
+                var token = JsonConvert.DeserializeObject<dynamic>(result).FormDigestValue.Value as string;
+                return token;
+            },TaskContinuationOptions.OnlyOnRanToCompletion));
+
+            var payLoad = JsonConvert.SerializeObject(new { __metadata = new {type = "SP.Folder"},ServerRelativeUrl = parentServerRelativeUrl.TrimEnd(new char[]{' ','/'}) + "/"+folderName});
+            var headerDictionary = new Dictionary<string,string>();
+            headerDictionary.Add("X-RequestDigest",formDigest);
+            //headerDictionary.Add("Content-Type","application/json; odata=verbose");
+            var createFolder = await restClient.postResource(webUrl.TrimEnd(new char[]{' ','/'})+"/_api/web/folders", new StringContent(payLoad), headerDictionary);
+            var response = await createFolder.Content.ReadAsStringAsync();
+            dynamic jsonResponse = JsonConvert.DeserializeObject<dynamic>(response);
+            var newSpFolder = new SPFolder
+                            {
+                                folderId = jsonResponse.UniqueId,
+                                folderTitle = jsonResponse.Name,
+                                itemCount = 0,
+                                metadata = response,
+                                restUrl = jsonResponse["odata.id"]
+                            };
+            return newSpFolder; //if successful
+            //return error code
+        }        
 
     }
 
@@ -208,5 +236,32 @@ namespace DataServices
             }
             return typeObjects;
         }
+
+        public async Task<HttpResponseMessage> postResource(string url, HttpContent payload, Dictionary<string,string> headers)
+        {
+
+            using (client = new HttpClient())
+            {
+                var postRequest = new HttpRequestMessage(HttpMethod.Post, url);                
+                if (payload != null)
+                {
+                    postRequest.Content = payload; 
+                    postRequest.Content.Headers.Clear(); 
+                    var s = postRequest.Content.Headers.TryAddWithoutValidation("content-type","application/json;odata=verbose");
+
+                }
+                if(headers?.Count > 0)
+                {
+                    foreach(var kv in headers)                        
+                        postRequest.Headers.TryAddWithoutValidation(kv.Key,kv.Value);
+                }
+                postRequest.Headers.Add("Accept", "application/json");
+                postRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",spcookie);                
+                var response = await client.SendAsync(postRequest);
+                response.EnsureSuccessStatusCode();
+                return response;
+            }
+        }
     }
+
 }
