@@ -34,3 +34,19 @@ Sample Response :
         ]
   }
 }
+
+Mutation : 
+1. Folder Mutation : create folders in sharepoint folders using mutation. Sample request : 
+mutation{
+ addFolder(siteUrl:"https://test.sharepoint.com", parent:"<parentfolder>", folderName:"<foldertoCreate>"){
+   <folderProperties>
+ }
+}
+
+Subscription : 
+1. Folder subscription : listen to folder creation using websockets. Sample request : 
+subscription{
+  OnFolderAddition(webUrl:"siteurl"){
+    <folderProperties>
+  }
+}
