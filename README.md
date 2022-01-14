@@ -50,3 +50,6 @@ subscription{
     <folderProperties>
   }
 }
+
+
+Feel free to ask/contribute for any change that seem desirable to you.
